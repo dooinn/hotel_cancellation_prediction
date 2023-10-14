@@ -15,8 +15,8 @@ def get_user_input():
     total_of_special_requests = st.slider('Total of Special Requests', min_value=0, max_value=5, value=0)
     
     # Categorical Input
-    deposit_type_Non_Refund = st.selectbox('Deposit Type Non Refund', options=[0, 1])
-    market_segment_Online_TA = st.selectbox('Market Segment Online TA', options=[0, 1])
+    deposit_type_Non_Refund = st.selectbox('Is Deposit Type Non Refund?', options=[0, 1])
+    market_segment_Online_TA = st.selectbox('Is Market Segment Online TA', options=[0, 1])
     
     # User data
     user_data = {
@@ -29,33 +29,45 @@ def get_user_input():
     
     # Dummy data for the other features
     dummy_data = {
-        'hotel': 'City Hotel',
-        'lead_time': 100,  
-        'arrival_date_year': 2016,  
-        'arrival_date_month': 'January',
-        'arrival_date_week_number': 1,
-        'arrival_date_day_of_month': 1,
-        'stays_in_weekend_nights': 1,
-        'stays_in_week_nights': 2,
-        'adults': 2,
-        'children': 0,
-        'babies': 0,
-        'meal': 'BB',
-        'country': 'PRT',
-        'market_segment': 'Direct',
-        'distribution_channel': 'Direct',
-        'is_repeated_guest': 0,
-        'previous_bookings_not_canceled': 0,
-        'reserved_room_type': 'A',
-        'assigned_room_type': 'A',
-        'booking_changes': 0,
-        'deposit_type': 'No Deposit',
-        'agent': 9.0,  # or other typical value
-        'days_in_waiting_list': 0,
-        'customer_type': 'Transient',
-        'adr': 100.0,  # or other typical value
-        'reservation_status': 'Check-Out',
-        'reservation_status_date': '2017-04-01'
+    'lead_time': 0,
+    'arrival_date_year': 2016,
+    'arrival_date_month': 8,
+    'arrival_date_week_number': 33,
+    'arrival_date_day_of_month': 20,
+    'stays_in_weekend_nights': 0,
+    'stays_in_week_nights': 2,
+    'adults': 2,
+    'children': 0.0,
+    'babies': 0,
+    'is_repeated_guest': 0,
+    'previous_bookings_not_canceled': 0,
+    'booking_changes': 0,
+    'days_in_waiting_list': 0,
+    'adr': 0.0,
+    'meal_FB': 0,
+    'meal_HB': 0,
+    'meal_SC': 0,
+    'market_segment_Complementary': 0,
+    'market_segment_Corporate': 0,
+    'market_segment_Direct': 0,
+    'market_segment_Groups': 0,
+    'market_segment_Offline TA/TO': 0,
+    'market_segment_Undefined': 0,
+    'distribution_channel_Direct': 0,
+    'distribution_channel_GDS': 0,
+    'distribution_channel_TA/TO': 1,
+    'distribution_channel_Undefined': 0,
+    'reserved_room_type_B': 0,
+    'reserved_room_type_C': 0,
+    'reserved_room_type_D': 0,
+    'reserved_room_type_E': 0,
+    'reserved_room_type_F': 0,
+    'reserved_room_type_G': 0,
+    'reserved_room_type_P': 0,
+    'deposit_type_Refundable': 0,
+    'customer_type_Group': 0,
+    'customer_type_Transient': 1,
+    'customer_type_Transient-Party': 0
     }
 
     # Exclude the features used in user input to avoid duplication
@@ -68,6 +80,7 @@ def get_user_input():
     return pd.DataFrame([user_data])
 
 
+
 # Define the main behavior of the streamlit app
 def app():
     st.write("# Hotel Booking Cancellation Prediction")
@@ -76,6 +89,9 @@ def app():
     # Predict and display the result
     if st.button('Predict'):
         prediction = model.predict(user_input)
+        prediction_proba = model.predict_proba(user_input)[0][1]  # Get the probability of class 1 (cancellation)
+        
+        st.write(f"Probability of cancellation: {prediction_proba * 100:.2f}%")
         
         if prediction[0] == 1:
             st.write("The booking is likely to be cancelled.")
