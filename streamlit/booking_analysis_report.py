@@ -1,93 +1,284 @@
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.figure_factory as ff
-import plotly.express as px
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import time
 
-# Loading data functions
+st. set_page_config(layout="wide")
+# Load data
 @st.cache_data
-def load_raw_data():
-    data = pd.read_csv('city_hotel.csv')
-    data['arrival_date'] = pd.to_datetime(data['arrival_date_year'].astype(str) + '-' + 
-                                          data['arrival_date_month'] + '-' + 
-                                          data['arrival_date_day_of_month'].astype(str))
-    return data
-
-@st.cache_data
-def load_monthly_data(data):
-    data['year_month'] = data['arrival_date_year'].astype(str) + '-' + data['arrival_date_month']
-    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    data['arrival_date_month'] = pd.Categorical(data['arrival_date_month'], categories=month_order, ordered=True)
-    data = data.sort_values(by=['arrival_date_year', 'arrival_date_month'])
-    monthly_data = data.groupby('year_month').agg(total_bookings=('is_canceled', 'size'), cancellations=('is_canceled', 'sum')).reset_index()
-    monthly_data['cancellation_rate'] = monthly_data['cancellations'] / monthly_data['total_bookings'] * 100  # expressed in percentage
-    return monthly_data
-
-# Calculation functions
-def calculate_annual_occupancy(data):
-    daily_occupancy = data.groupby('arrival_date').size().reset_index(name='number_of_bookings')
-    daily_occupancy['occupancy_rate'] = (daily_occupancy['number_of_bookings'] / 449) * 100
-    date_ranges = [("2015-07-01", "2016-07-01"), ("2016-07-01", "2017-07-01")]
-    annual_occupancy_rates = {f"{start_date} to {end_date}": daily_occupancy[(daily_occupancy['arrival_date'] >= start_date) & 
-                                          (daily_occupancy['arrival_date'] < end_date)]['occupancy_rate'].mean() 
-                             for start_date, end_date in date_ranges}
-    return annual_occupancy_rates
-
-def calculate_monthly_occupancy(data):
-    monthly_occupancy = data.groupby(data['arrival_date'].dt.to_period("M")).size().reset_index(name='number_of_bookings')
-    monthly_occupancy['occupancy_rate'] = (monthly_occupancy['number_of_bookings'] / 449) * 100
-    monthly_occupancy.columns = ['Month-Year', 'Number of Bookings', 'Average Occupancy Rate (%)']
-    monthly_occupancy['Month-Year'] = monthly_occupancy['Month-Year'].dt.strftime('%B %Y')
-    return monthly_occupancy
-
-def create_occupancy_heatmap(data):
-    data['month'] = data['arrival_date'].dt.month_name()
-    data['day_of_week'] = data['arrival_date'].dt.day_name()
-    data['occupancy_rate'] = (1 / 449) * 100  # Since each row represents a booking, the occupancy for each row is 1/449
-    avg_occupancy = data.groupby(['month', 'day_of_week'])['occupancy_rate'].mean().unstack().reset_index()
-    month_order = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    avg_occupancy['month'] = pd.Categorical(avg_occupancy['month'], categories=month_order, ordered=True)
-    avg_occupancy = avg_occupancy.sort_values('month').set_index('month')[day_order]
-    fig = go.Figure(data=go.Heatmap(z=avg_occupancy.values, x=avg_occupancy.columns, y=avg_occupancy.index, colorscale="Viridis", showscale=True))
-    fig.update_layout(title="Average Occupancy Rate by Month and Day of Week", xaxis_title="Day of Week", yaxis_title="Month")
-    return fig
-
-def display_booking_cancellation_trend(monthly_data):
-    fig = go.Figure()
-    fig.add_trace(go.Bar(x=monthly_data['year_month'], y=monthly_data['total_bookings'], name='Booking Count'))
-    fig.add_trace(go.Scatter(x=monthly_data['year_month'], y=monthly_data['cancellation_rate'], name='Cancellation Rate (%)', yaxis='y2'))
-    fig.update_layout(yaxis=dict(title='Booking Count'), yaxis2=dict(title='Cancellation Rate (%)', overlaying='y', side='right'), title='Monthly Booking Count vs Cancellation Rate', xaxis_title='Year-Month')
-    st.plotly_chart(fig)
+def load_data():
+    return pd.read_csv("city_hotel_dash.csv")  # Adjust path as needed
 
 def app():
-    raw_data = load_raw_data()
-    monthly_data = load_monthly_data(raw_data)
     
-    st.header("Revenue Trend")
-    raw_data['total_revenue'] = raw_data['adr'] * (raw_data['stays_in_weekend_nights'] + raw_data['stays_in_week_nights'])
-    revenue_trend = raw_data.groupby('arrival_date')['total_revenue'].sum().reset_index()
-    fig_revenue_trend = px.line(revenue_trend, x='arrival_date', y='total_revenue', title='Revenue Over Time')
-    st.plotly_chart(fig_revenue_trend)
+    data = load_data()
+
+    # Relabel is_canceled
+    data['is_canceled'] = data['is_canceled'].replace({0: 'Not Cancelled', 1: 'Cancelled'})
+
+    # Create a column combining year and month for easier grouping
+    data['year_month'] = data['arrival_date_year'].astype(str) + "-" + data['arrival_date_month']
+
+    # Streamlit header
+    st.title("Booking & Cancellation Analysis")
+
+    row1_col1, row1_col2 = st.columns(2)
+
+    with row1_col1:
+        # Extra stacked bar chart for bookings count in each month
+        st.subheader("Monthly Booking")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        monthly_counts = data.groupby(['year_month', 'is_canceled']).size().unstack().fillna(0)
+        monthly_counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        # Calculate and annotate with cancellation rate
+        total_bookings = monthly_counts.sum(axis=1)
+        cancelled_bookings = monthly_counts['Cancelled']
+        cancellation_rate = (cancelled_bookings / total_bookings) * 100
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total_bookings.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+        content = """
+- The booking trends exhibit seasonality. Bookings peak from spring to autumn, indicating these as the high seasons, while winter represents the low season.
+- The cancellation rate remains relatively consistent, with an average rate hovering between 30% to 40%.
+"""
+        st.markdown(content)
+
+ 
+
+    with row1_col2:
+        st.subheader("Meal")
+        counts = data.groupby(['meal', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+        content = """
+- BB (Bed and Breakfast) is the most commonly chosen meal plan by guests.
+- SC (Self Catering) ranks as the second most popular choice. This option allows guests the flexibility to either dine out or prepare their own meals, often perceived as the most economical choice during their stay.
+- HB (Half Board) isn't as favored as SC. It includes breakfast and one additional meal, either lunch or dinner.
+- FB (Full Board) encompasses all three meals: breakfast, lunch, and dinner, provided by the hotel. While it's the priciest meal plan, it's noteworthy that its cancellation rate stands at a staggering 79.55%. This rate is significantly higher than other meal plans, which range from 37% to 42%. It's plausible that guests who initially opt for FB might later reconsider to experience local restaurants or simply change their dining preferences.
+"""
+        st.markdown(content)
     
-    st.header("Annual Occupancy Rates")
-    annual_rates = calculate_annual_occupancy(raw_data)
-    for period, rate in annual_rates.items():
-        st.write(f"{period}: {rate:.2f}%")
+
+
+    row2_col1, row2_col2 = st.columns(2)
+    with row2_col1:
+        st.subheader("Country")
+        top_countries = data['country'].value_counts().index[:10]
+        data_filtered = data[data['country'].isin(top_countries)]
+        counts = data_filtered.groupby(['country', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+        
+    with row2_col2:
+        st.subheader("Local vs Foreign guests bookings")
+        data['guest_origin'] = data['country'].apply(lambda x: 'Local' if x == 'PRT' else 'Foreign')
+        # top_countries = data['country'].value_counts().index[:10]
+        # data_filtered = data[data['country'].isin(top_countries)]
+        counts = data.groupby(['guest_origin', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+    content = """
+- Given the hotel's location in Lisbon, it's unsurprising that the majority of guests hail from Portugal.
+- Interestingly, the combined number of international guests surpasses that of local visitors, suggesting that the hotel is primarily frequented by foreign travelers.
+- Guests from countries in close proximity to Portugal, especially from Europe, tend to dominate the booking statistics compared to those from farther afield.
+- On the topic of cancellations, local guests exhibit a markedly higher rate than their international counterparts. This might be attributed to the fact that foreign guests typically book with more conviction, possibly due to the effort and planning involved in international travel.
+- It's worth considering that these international visitors could be significant contributors to the hotel's revenue stream.
+"""
+    st.markdown(content)
     
-    st.header("Occupancy Rate Trend")
-    daily_occupancy = raw_data.groupby('arrival_date').size().reset_index(name='number_of_bookings')
-    daily_occupancy['occupancy_rate'] = (daily_occupancy['number_of_bookings'] / 449) * 100
-    fig_occupancy_trend = px.line(daily_occupancy, x='arrival_date', y='occupancy_rate', title='Occupancy Rate Over Time')
-    st.plotly_chart(fig_occupancy_trend)
     
-    st.header("Average Monthly Occupancy Rate")
-    monthly_rates = calculate_monthly_occupancy(raw_data)
-    st.table(monthly_rates)
     
-    st.header("Average Occupancy Rate Heatmap")
-    avg_occupancy_heatmap = create_occupancy_heatmap(raw_data)
-    st.plotly_chart(avg_occupancy_heatmap)
     
-    st.header("Booking & Cancellation Trend")
-    display_booking_cancellation_trend(monthly_data)
+
+
+    row3_col1, row3_col2 = st.columns(2)
+    
+    with row3_col1:
+        st.subheader("Reserved Room Type")
+        counts = data.groupby(['reserved_room_type', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+    
+
+    with row3_col2:
+        st.subheader("ADR distribution by Room Type")
+        unique_room_types = data['reserved_room_type'].unique()
+        colors = sns.color_palette("husl", len(unique_room_types))
+        fig, ax = plt.subplots(figsize=(20, 10))
+
+        for idx, room_type in enumerate(unique_room_types):
+            subset = data[data['reserved_room_type'] == room_type]
+            median_adr = subset['adr'].median()
+            label = f"{room_type} (Median: ${median_adr:.2f})"
+            sns.kdeplot(subset['adr'], label=label, color=colors[idx], shade=True, ax=ax)
+
+        ax.set_title('Distribution of ADR for Each Reserved Room Type')
+        ax.set_xlabel('Average Daily Rate (ADR)')
+        ax.set_ylabel('Density')
+        ax.legend(title='Reserved Room Type')
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+        plt.tight_layout()
+        st.pyplot(fig)
+    
+    row4_col1, row4_col2 = st.columns(2)
+    
+    with row4_col1:
+        st.subheader("Deposit Type")
+        counts = data.groupby(['deposit_type', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+    with row4_col2:        
+        st.subheader("Market Segment")
+        counts = data.groupby(['market_segment', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+        
+
+    
+    row5_col1, row5_col2 = st.columns(2)
+    with row5_col1:
+        st.subheader("Guest Group Type")
+        counts = data.groupby(['guest_group_type', 'is_canceled']).size().unstack().fillna(0)
+        total = counts.sum(axis=1)
+        cancellation_rate = (counts['Cancelled'] / total) * 100
+        fig, ax = plt.subplots(figsize=(12, 6))
+        counts.plot(kind='bar', stacked=True, colormap="tab20c", ax=ax)
+        for i, rate in enumerate(cancellation_rate):
+            ax.text(i, total.iloc[i] + 20, f"{rate:.2f}%", ha='center')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+    
+
+
+    # Create a temporary numeric version of the 'is_canceled' column for calculations
+    data['is_canceled_numeric'] = data['is_canceled'].replace({'Not Cancelled': 0, 'Cancelled': 1})
+
+
+    row6_col1, row6_col2, row6_col3  = st.columns(3)
+    with row6_col1:
+        st.subheader("Lead Time")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.boxplot(x='is_canceled', y='lead_time', data=data, ax=ax, palette="tab20c")
+        ax.set_title(f"Box plot of Lead Time vs. Cancellation Status")
+        st.pyplot(fig)
+    
+    with row6_col2:
+        st.subheader("ADR")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.boxplot(x='is_canceled', y='adr', data=data, ax=ax, palette="tab20c")
+        ax.set_title(f"Box plot of ADR vs. Cancellation Status")
+        st.pyplot(fig)
+    
+    with row6_col3:   
+        st.subheader("Total Stay Nights")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.boxplot(x='is_canceled', y='total_stay_nights', data=data, ax=ax, palette="tab20c")
+        ax.set_title(f"Box plot of Stay Nights vs. Cancellation Status")
+        st.pyplot(fig)
+    
+    
+    
+    row7_col1, row7_col2, row7_col3, row7_4, row7_5  = st.columns(5)
+    with row7_col1:
+        st.subheader("Repeated Guest")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        means = data.groupby('is_repeated_guest')['is_canceled_numeric'].mean()
+        means.plot(kind='bar', ax=ax, color='lightblue')
+        ax.set_title(f"Mean Cancellation Rate by Repated Guest")
+        ax.set_ylabel("Mean Cancellation Rate")
+        for j, rate in enumerate(means):
+            ax.text(j, rate + 0.02, f"{rate:.2f}", ha='center')
+        st.pyplot(fig)
+    
+    with row7_col2:
+        st.subheader("Previous Cancellation")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        means = data.groupby('previous_cancellations')['is_canceled_numeric'].mean()
+        means.plot(kind='bar', ax=ax, color='lightblue')
+        ax.set_title(f"Mean Cancellation Rate by Previous Cancellation")
+        ax.set_ylabel("Mean Cancellation Rate")
+        for j, rate in enumerate(means):
+            ax.text(j, rate + 0.02, f"{rate:.2f}", ha='center')
+        st.pyplot(fig)
+    
+    with row7_col3:
+        st.subheader("Booking Changes")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        means = data.groupby('booking_changes')['is_canceled_numeric'].mean()
+        means.plot(kind='bar', ax=ax, color='lightblue')
+        ax.set_title(f"Mean Cancellation Rate by Booking Changes")
+        ax.set_ylabel("Mean Cancellation Rate")
+        for j, rate in enumerate(means):
+            ax.text(j, rate + 0.02, f"{rate:.2f}", ha='center')
+        st.pyplot(fig)
+    
+    with row7_4:
+        st.subheader("Car Parking Request")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        means = data.groupby('required_car_parking_spaces')['is_canceled_numeric'].mean()
+        means.plot(kind='bar', ax=ax, color='lightblue')
+        ax.set_title(f"Mean Cancellation Rate by Car Parking Spaces Request")
+        ax.set_ylabel("Mean Cancellation Rate")
+        for j, rate in enumerate(means):
+            ax.text(j, rate + 0.02, f"{rate:.2f}", ha='center')
+        st.pyplot(fig)
+        
+    with row7_5:
+        st.subheader("Special Request")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        means = data.groupby('total_of_special_requests')['is_canceled_numeric'].mean()
+        means.plot(kind='bar', ax=ax, color='lightblue')
+        ax.set_title(f"Mean Cancellation Rate by Special Requests")
+        ax.set_ylabel("Mean Cancellation Rate")
+        for j, rate in enumerate(means):
+            ax.text(j, rate + 0.02, f"{rate:.2f}", ha='center')
+        st.pyplot(fig)
+        
+
+    
+
+   
