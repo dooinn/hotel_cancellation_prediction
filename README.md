@@ -83,7 +83,7 @@ The following slide deck provides more detailed information about the research.
 The following image is the XGBoost Classification Report and Feature Importances
 ![XGBoost Classification Report](/img_assets/class_report_feature_import.png)
 
-- After comparing the metrics of various algorithms (Logistic Regression, Decision Tree, Random Forest, XGBoost) in the context of hotel booking cancellations, the XGBoost model emerges as the best choice. It boasts the highest accuracy, F1-score for class 1 (cancellations), and AUC. Furthermore, its consistent performance on the test set indicates excellent generalization to new data.
+    - After comparing the metrics of various algorithms (Logistic Regression, Decision Tree, Random Forest, XGBoost) in the context of hotel booking cancellations, the XGBoost model emerges as the best choice. It boasts the highest accuracy, F1-score for class 1 (cancellations), and AUC. Furthermore, its consistent performance on the test set indicates excellent generalization to new data.
     - In terms of the feature importance from XGBoost:
     1. Market segments hold significant influence in predicting cancellations, with online and offline travel agents, along with direct bookings, being the top contributors.
     2. Guest preferences and requirements, such as special requests and parking space needs, also considerably affect the predictions.
