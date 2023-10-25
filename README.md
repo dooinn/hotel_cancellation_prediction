@@ -51,14 +51,22 @@ To tackle this, we endeavor to predict booking cancellations of foreign guests u
 
 
 ## Methodology
-- EDA: Tableau
+- EDA: Tableau & Jupyter Notebook
+
+![Dashboard - Main Dashboard](/img_assets/dashboard1.png)
+![Dashboard - Market Segmentation](/img_assets/dashboard2.png)
+
 - Modelling
+
+
+
 
 
 
 ## Results
 
-![XGBoost Classification Report](class_report_feature_import.png)
+![XGBoost Classification Report](/img_assets/class_report_feature_import.png)
+
 
 
 
