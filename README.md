@@ -19,19 +19,19 @@ This is part of Ironhack's Final Project. In this endeavor, we aim to address a 
 
 Hotel booking cancellations can have a significant impact on revenue and operations. Accurately predicting these cancellations can aid in better resource management, financial planning, and guest relations. Here are the specific reasons why predicting hotel booking cancellation is important.
 
-    1. Revenue Optimization:
+**1. Revenue Optimization:**
 Predicting cancellations allows hotels to better manage room inventory, potentially overbooking rooms to ensure maximum occupancy and implementing dynamic pricing.
 
-    2. Operational Efficiency:
+**2. Operational Efficiency:**
 Accurate cancellation predictions aid in resource allocation, such as staffing and procurement, ensuring that costs are minimized and resources aren't wasted on bookings that won't materialize.
 
-    3. Guest Experience:
+**3. Guest Experience:**
 By managing overbookings effectively through accurate predictions, hotels can minimize guest inconvenience, enhancing the overall guest experience.
 
-    4. Strategic Marketing:
+**4. Strategic Marketing:**
 Insights from cancellation trends can guide targeted marketing campaigns or loyalty programs to reduce future cancellations.
 
-    5. Financial Forecasting:
+**5. Financial Forecasting:**
 Understanding expected cancellations helps in more accurate financial planning and budgeting.
 
 - **Goal**:
